@@ -388,8 +388,10 @@ install_dst(void)
 
 	ensure_config();
 
-	if (install_binary(self, first_try) == 0)
+	if (install_binary(self, first_try) == 0) {
+		printf("dst: install man page via: sudo make install (from src tree)\n");
 		return 0;
+	}
 
 	/* fallback to ~/.local/bin/dst */
 	if (home) {
@@ -399,8 +401,10 @@ install_dst(void)
 	} else {
 		fallback = NULL;
 	}
-	if (fallback && install_binary(self, fallback) == 0)
+	if (fallback && install_binary(self, fallback) == 0) {
+		printf("dst: install man page via: sudo make install (from src tree)\n");
 		return 0;
+	}
 
 	fprintf(stderr, "dst: could not install to any location\n");
 	return 1;
