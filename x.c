@@ -2036,7 +2036,8 @@ usage(void)
 	    "          [-T title] [-t title] [-w windowid] -l line"
 	    " [stty_args ...]\n"
 	    "       %s --rebuild\n"
-	    "       %s --install\n", argv0, argv0, argv0, argv0);
+	    "       %s --install\n"
+	    "       %s --edit\n", argv0, argv0, argv0, argv0, argv0);
 }
 
 int
@@ -2048,6 +2049,8 @@ main(int argc, char *argv[])
 		return rebuild();
 	if (argc > 1 && !strcmp(argv[1], "--install"))
 		return install_dst();
+	if (argc > 1 && !strcmp(argv[1], "--edit"))
+		return edit_config();
 
 	xw.l = xw.t = 0;
 	xw.isfixed = False;

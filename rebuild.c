@@ -409,3 +409,33 @@ install_dst(void)
 	fprintf(stderr, "dst: could not install to any location\n");
 	return 1;
 }
+
+int
+edit_config(void)
+{
+	char path[1024], *editor;
+	pid_t pid;
+	int st;
+
+	if (config_path(path, sizeof path) == 0)
+		return 1;
+
+	if (access(path, F_OK) != 0)
+		ensure_config();
+
+	if (!(editor = getenv("EDITOR")))
+		editor = "vi";
+
+	switch ((pid = fork())) {
+	case -1:
+		fprintf(stderr, "dst: fork: %s\n", strerror(errno));
+		return 1;
+	case 0:
+		execlp(editor, editor, path, (char *)NULL);
+		fprintf(stderr, "dst: exec %s: %s\n", editor, strerror(errno));
+		_exit(1);
+	default:
+		waitpid(pid, &st, 0);
+		return WIFEXITED(st) ? WEXITSTATUS(st) : 1;
+	}
+}

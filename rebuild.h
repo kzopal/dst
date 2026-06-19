@@ -24,3 +24,4 @@
  */
 int rebuild(void);
 int install_dst(void);
+int edit_config(void);
