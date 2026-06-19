@@ -23,13 +23,14 @@
  * overwrites the compile-time defaults that config.h installs into x.c's
  * globals. Single pass, no dependencies. Anything malformed is warned about
  * (with a line number) and skipped; a missing file falls back to the defaults
- * silently.
+ * (with a one-line info message).
  *
  * The only existing-source change this needs is the load_config() call near
  * the top of main(); everything else lives here.
  */
 
 #include <ctype.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -317,8 +318,11 @@ load_config(void)
 	if (!config_path(path, sizeof path))
 		return;   /* nowhere to look; keep compiled defaults */
 
-	if (!(f = fopen(path, "r")))
-		return;   /* no config file; keep compiled defaults */
+	if (!(f = fopen(path, "r"))) {
+		if (errno == ENOENT)
+			fprintf(stderr, "dst: no config at %s, using defaults\n", path);
+		return;
+	}
 
 	cfgpath = path;
 	cfglineno = 0;
