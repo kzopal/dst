@@ -1,4 +1,20 @@
 /* See LICENSE file for copyright and license details. */
+/*
+ * dst - dynamic suckless terminal
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 
 /*
  * dst: runtime configuration parser.
@@ -28,6 +44,10 @@ extern char *font;
 extern int borderpx;
 extern char *shell;
 extern char *termname;
+extern char *utmp;
+extern char *scroll;
+extern char *stty_args;
+extern char *vtiden;
 extern unsigned int tabspaces;
 extern int allowaltscreen;
 extern int allowwindowops;
@@ -63,6 +83,10 @@ static const struct directive directives[] = {
 	{ "font",            K_STR,  &font,            0 },
 	{ "shell",           K_STR,  &shell,           0 },
 	{ "termname",        K_STR,  &termname,        0 },
+	{ "utmp",            K_STR,  &utmp,            0 },
+	{ "scroll",          K_STR,  &scroll,          0 },
+	{ "stty_args",       K_STR,  &stty_args,       0 },
+	{ "vtiden",          K_STR,  &vtiden,          0 },
 	{ "borderpx",        K_INT,  &borderpx,        0 },
 	{ "bellvolume",      K_INT,  &bellvolume,      0 },
 	{ "allowaltscreen",  K_INT,  &allowaltscreen,  0 },

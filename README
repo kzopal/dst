@@ -1,4 +1,9 @@
 dst 0.1 - dynamic suckless terminal
+Copyright (C) 2026  dst contributors
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
 -----------------------------------
 dst 0.1 is a fork of st 0.9.3 you configure with a runtime text file and patch
 declaratively - no recompiling to change settings.

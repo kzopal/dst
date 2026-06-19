@@ -1,5 +1,10 @@
 # AGENTS.md — dst (dynamic suckless terminal)
 
+Copyright (C) 2026  dst contributors
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
 Instructions for AI coding agents (opencode etc.) continuing this project.
 Read this fully before changing anything.
 
@@ -64,7 +69,7 @@ make                       # builds ./dst
 make clean
 ```
 Quick checks without an X display (the parser/rebuild code is pure libc):
-- `cc -std=c99 -D_XOPEN_SOURCE=600 -Wall -Wextra -fsyntax-only config.c rebuild.c`
+- `cc -std=c99 -D_XOPEN_SOURCE=600 -DDST_REPO='"..."' -DDST_TAG='"..."' -Wall -Wextra -fsyntax-only config.c rebuild.c`
 - Parser: link `config.o` against a stub `main` that defines the extern globals
   (font, borderpx, colorname[260], …), point `$XDG_CONFIG_HOME` at a temp config,
   call `load_config()`, print results.
@@ -81,24 +86,25 @@ copy with `tar`/`cp` excludes rather than delete-then-copy.
 - All three components implemented; `make` links clean under `-Wall -Wextra`.
 - Runtime parser tested (directives, quotes, `$var` subst, special color slots,
   include-skip, line-numbered warnings, malformed handling).
-- `--rebuild` tested END-TO-END with a real upstream patch: fetch → `patch -p1`
-  (applied with offsets) → fresh compile fusing the patch with dst's own code →
-  atomic install. Verified both features present in the built binary.
+- `--rebuild` tested END-TO-END with real upstream patches: fetch → `patch -p1`
+  (all 37 working patches apply with `-F0` after dst-side cleaning) → fresh
+  compile fusing the patch with dst's own code → atomic install. Verified both
+  features present in the built binary.
 - Full rebrand to `dst` (binary, README, `dst.1`, version) done.
 
 ## Remaining work (TODO)
 
-1. **Publish to GitHub.** Repo not created yet; `gh` CLI not installed in the
-   working env. Once available:
+1. **Publish to GitHub.** `gh` CLI is available (`/usr/bin/gh`). Run:
    `gh repo create dst --source=. --public --remote=origin --push`
    GitHub description = the README tagline.
 2. **[DONE] Productionize the pin.** `--rebuild` now auto-clones from `DST_REPO`
    at `DST_TAG` when no source tree is found and `DST_SRC` is unset. Patches still
    apply with FUZZ — consider pinning to an exact st tag for byte-exact application,
    or add the optional per-patch checksum the original design mentioned.
-3. **Exercise more patches.** Only `st-scrollback` has been run live. Try patches
-   that touch the same lines as dst's edits (config.def.h de-static lines) to find
-   real conflicts; document any that need ordering or manual resolution.
+3. **[DONE] Exercise more patches.** Tested all 99 categories from st.suckless.org.
+   65 apply with -F0 after cleaning. Cleaned patches live in `~/dst/patches/` with
+   README and `check-versions` script. See `~/dst/patches/RESULTS` for full
+   per-patch breakdown.
 4. **Runtime keybindings** — explicitly out of scope for v1 (C function pointers
    need a string→function table). Deferred; leave shortcuts in config.def.h.
 5. **Nice-to-haves**: more directives if requested; a `-C <path>` flag to point at

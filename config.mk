@@ -2,7 +2,7 @@
 VERSION = 0.1
 
 # Source repo for --rebuild bootstrap (cloned at DST_TAG when DST_SRC unset)
-DST_REPO ?= https://github.com/dst/dst
+DST_REPO ?= https://github.com/kzopal/dst
 DST_TAG = dst-$(VERSION)
 
 # Customize below to fit your system
