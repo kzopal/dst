@@ -151,7 +151,10 @@ resolve_short_name(const char *shortname)
 	if (access(idxpath, R_OK) != 0) {
 		char *a[] = { "curl", "-fsSL", "-o", idxpath, PATCHES_BASE "/INDEX", NULL };
 		printf("dst: fetching patch index\n");
+		/* ensure the patches dir exists before curl writes to it */
+		{ char *b[] = { "mkdir", "-p", patchdir, NULL }; run(b); }
 		if (run(a)) {
+			unlink(idxpath);  /* discard partial write */
 			fprintf(stderr, "dst: failed to fetch patch index from %s\n"
 			    "     use a full URL to bypass short-name lookup\n",
 			    PATCHES_BASE "/INDEX");
@@ -317,7 +320,7 @@ rebuild(void)
 			}
 		}
 		printf("dst: applying %s\n", urlbasename(inc[i]));
-		{ char *a[] = { "patch", "-p1", "-d", builddir, "-i", cache, NULL };
+		{ char *a[] = { "patch", "-p1", "--no-backup-if-mismatch", "-d", builddir, "-i", cache, NULL };
 		  if (run(a)) {
 			fprintf(stderr, "dst: patch failed: %s\n"
 			    "     fix or remove the include line; rejects are under %s\n",
