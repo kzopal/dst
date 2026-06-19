@@ -1,5 +1,9 @@
-# st version
-VERSION = 0.9.3
+# dst version (forked from st 0.9.3)
+VERSION = 0.1
+
+# Source repo for --rebuild bootstrap (cloned at DST_TAG when DST_SRC unset)
+DST_REPO ?= https://github.com/dst/dst
+DST_TAG = dst-$(VERSION)
 
 # Customize below to fit your system
 
@@ -21,7 +25,7 @@ LIBS = -L$(X11LIB) -lm -lrt -lX11 -lutil -lXft \
        `$(PKG_CONFIG) --libs freetype2`
 
 # flags
-STCPPFLAGS = -DVERSION=\"$(VERSION)\" -D_XOPEN_SOURCE=600
+STCPPFLAGS = -DVERSION=\"$(VERSION)\" -DDST_REPO=\"$(DST_REPO)\" -DDST_TAG=\"$(DST_TAG)\" -D_XOPEN_SOURCE=600
 STCFLAGS = $(INCS) $(STCPPFLAGS) $(CPPFLAGS) $(CFLAGS)
 STLDFLAGS = $(LIBS) $(LDFLAGS)
 

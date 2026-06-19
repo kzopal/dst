@@ -62,6 +62,7 @@ static void ttysend(const Arg *);
 
 /* config.h for applying patches and the configuration. */
 #include "config.h"
+#include "rebuild.h"
 
 /* XEMBED messages */
 #define XEMBED_FOCUS_IN  4
@@ -2033,14 +2034,25 @@ usage(void)
 	    "       %s [-aiv] [-c class] [-f font] [-g geometry]"
 	    " [-n name] [-o file]\n"
 	    "          [-T title] [-t title] [-w windowid] -l line"
-	    " [stty_args ...]\n", argv0, argv0);
+	    " [stty_args ...]\n"
+	    "       %s --rebuild\n", argv0, argv0, argv0);
 }
 
 int
 main(int argc, char *argv[])
 {
+	/* dst: `dst --rebuild` rebuilds the binary from config patches instead
+	 * of starting a terminal. Handle it before any X setup. */
+	if (argc > 1 && !strcmp(argv[1], "--rebuild"))
+		return rebuild();
+
 	xw.l = xw.t = 0;
 	xw.isfixed = False;
+
+	/* dst: load ~/.config/dst/config before reading any config globals or
+	 * CLI flags, so precedence is defaults < config file < command line. */
+	load_config();
+
 	xsetcursor(cursorshape);
 
 	ARGBEGIN {
@@ -2092,7 +2104,7 @@ run:
 		opt_cmd = argv;
 
 	if (!opt_title)
-		opt_title = (opt_line || !opt_cmd) ? "st" : opt_cmd[0];
+		opt_title = (opt_line || !opt_cmd) ? "dst" : opt_cmd[0];
 
 	setlocale(LC_CTYPE, "");
 	XSetLocaleModifiers("");

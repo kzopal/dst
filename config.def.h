@@ -1,12 +1,19 @@
 /* See LICENSE file for copyright and license details. */
 
 /*
+ * dst: load runtime configuration from ~/.config/dst/config, overriding the
+ * compile-time defaults below. Defined in config.c, called early in main().
+ */
+void load_config(void);
+int config_path(char *buf, size_t len);
+
+/*
  * appearance
  *
  * font: see http://freedesktop.org/software/fontconfig/fontconfig-user.html
  */
-static char *font = "Liberation Mono:pixelsize=12:antialias=true:autohint=true";
-static int borderpx = 2;
+char *font = "Liberation Mono:pixelsize=12:antialias=true:autohint=true";
+int borderpx = 2;
 
 /*
  * What program is execed by st depends of these precedence rules:
@@ -16,7 +23,7 @@ static int borderpx = 2;
  * 4: value of shell in /etc/passwd
  * 5: value of shell in config.h
  */
-static char *shell = "/bin/sh";
+char *shell = "/bin/sh";
 char *utmp = NULL;
 /* scroll program: to enable use a string like "scroll" */
 char *scroll = NULL;
@@ -60,18 +67,18 @@ static double maxlatency = 33;
  * blinking timeout (set to 0 to disable blinking) for the terminal blinking
  * attribute.
  */
-static unsigned int blinktimeout = 800;
+unsigned int blinktimeout = 800;
 
 /*
  * thickness of underline and bar cursors
  */
-static unsigned int cursorthickness = 2;
+unsigned int cursorthickness = 2;
 
 /*
  * bell volume. It must be a value between -100 and 100. Use 0 for disabling
  * it
  */
-static int bellvolume = 0;
+int bellvolume = 0;
 
 /* default TERM value */
 char *termname = "st-256color";
@@ -94,7 +101,7 @@ char *termname = "st-256color";
 unsigned int tabspaces = 8;
 
 /* Terminal colors (16 first used in escape sequence) */
-static const char *colorname[] = {
+char *colorname[] = {
 	/* 8 normal colors */
 	"black",
 	"red3",
@@ -141,14 +148,14 @@ static unsigned int defaultrcs = 257;
  * 6: Bar ("|")
  * 7: Snowman ("☃")
  */
-static unsigned int cursorshape = 2;
+unsigned int cursorshape = 2;
 
 /*
  * Default columns and rows numbers
  */
 
-static unsigned int cols = 80;
-static unsigned int rows = 24;
+unsigned int cols = 80;
+unsigned int rows = 24;
 
 /*
  * Default colour and shape of the mouse cursor

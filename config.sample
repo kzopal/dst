@@ -1,0 +1,91 @@
+# dst — dynamic suckless terminal
+# Sample configuration. Install to ~/.config/dst/config
+#
+# Syntax:
+#   - one directive per line:   <directive> <args...>
+#   - a line whose first non-blank character is '#' is a comment; blank
+#     lines are ignored. (Inline comments aren't supported, so that #rrggbb
+#     color values need no quoting.)
+#   - args are whitespace-separated; a value may be quoted with "..."
+#     to include spaces (e.g. font names)
+#   - 'set $NAME value' defines a variable; '$NAME' is substituted on
+#     any later line
+#   - unknown directives are warned about and skipped (forward-compatible)
+#   - any setting not listed falls back to its built-in default
+
+# ---------------------------------------------------------------------------
+# Variables (defined first, substituted below)
+# ---------------------------------------------------------------------------
+set $bg       #1d1f21
+set $fg       #c5c8c6
+set $accent   #81a2be
+
+# ---------------------------------------------------------------------------
+# Appearance
+# ---------------------------------------------------------------------------
+font            "Liberation Mono:pixelsize=12:antialias=true:autohint=true"
+borderpx        2
+cols            80
+rows            24
+tabspaces       8
+
+# Cursor: shape 2=block 4=underline 6=bar 7=snowman; thickness for bar/underline
+cursorshape     2
+cursorthickness 2
+
+# ---------------------------------------------------------------------------
+# Colors
+#   value may be: an X color name (e.g. "red3", "gray90"),
+#   a #rrggbb hex string, or a $variable defined above.
+# ---------------------------------------------------------------------------
+# 8 normal colors (0-7)
+color0          $bg
+color1          #cc6666
+color2          #b5bd68
+color3          #f0c674
+color4          $accent
+color5          #b294bb
+color6          #8abeb7
+color7          #c5c8c6
+
+# 8 bright colors (8-15)
+color8          #969896
+color9          #cc6666
+color10         #b5bd68
+color11         #f0c674
+color12         $accent
+color13         #b294bb
+color14         #8abeb7
+color15         #ffffff
+
+# Special colors
+foreground      $fg
+background      $bg
+cursor          $fg
+reverse_cursor  $bg
+
+# ---------------------------------------------------------------------------
+# Behavior
+# ---------------------------------------------------------------------------
+termname        st-256color
+shell           /bin/sh
+bellvolume      0
+blinktimeout    800
+allowaltscreen  1
+allowwindowops  0
+
+# ---------------------------------------------------------------------------
+# Patches (rebuild-time, NOT runtime)
+#
+# 'include' lines list st patches to compile in. They are ignored on a normal
+# launch and are read only by 'dst --rebuild', which fetches each diff, applies
+# them in the order listed to a clean source tree, rebuilds, and installs the
+# result. Remove a line and re-run 'dst --rebuild' to drop that patch.
+# ---------------------------------------------------------------------------
+# include https://st.suckless.org/patches/scrollback/st-scrollback-0.9.2.diff
+# include https://st.suckless.org/patches/clipboard/st-clipboard-0.8.3.diff
+
+# ---------------------------------------------------------------------------
+# Not configurable at runtime in v1 (still compile-time in the source):
+#   keybindings / shortcuts, mouse shortcuts, the special-key table.
+# ---------------------------------------------------------------------------

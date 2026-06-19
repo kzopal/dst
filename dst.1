@@ -1,8 +1,8 @@
-.TH ST 1 st\-VERSION
+.TH DST 1 dst\-VERSION
 .SH NAME
-st \- simple terminal
+dst \- dynamic suckless terminal
 .SH SYNOPSIS
-.B st
+.B dst
 .RB [ \-aiv ]
 .RB [ \-c
 .IR class ]
@@ -26,7 +26,7 @@ st \- simple terminal
 .IR command
 .RI [ arguments ...]]
 .PP
-.B st
+.B dst
 .RB [ \-aiv ]
 .RB [ \-c
 .IR class ]
@@ -47,9 +47,18 @@ st \- simple terminal
 .RB \-l
 .IR line
 .RI [ stty_args ...]
+.PP
+.B dst
+.B \-\-rebuild
 .SH DESCRIPTION
-.B st
-is a simple terminal emulator.
+.B dst
+is a fork of st, the suckless simple terminal. It keeps st's minimalism but
+reads its settings at startup from a runtime configuration file
+.RI ( ~/.config/dst/config )
+instead of requiring a recompile, and it can apply upstream st patches
+declaratively. See
+.B CONFIGURATION
+below.
 .SH OPTIONS
 .TP
 .B \-a
@@ -82,10 +91,10 @@ This feature is useful when recording st sessions. A value of "-" means
 standard output.
 .TP
 .BI \-T " title"
-defines the window title (default 'st').
+defines the window title (default 'dst').
 .TP
 .BI \-t " title"
-defines the window title (default 'st').
+defines the window title (default 'dst').
 .TP
 .BI \-w " windowid"
 embeds st within the window identified by
@@ -113,6 +122,17 @@ for more arguments and cases.
 .TP
 .B \-v
 prints version information to stderr, then exits.
+.TP
+.B \-\-rebuild
+rebuilds the
+.B dst
+binary from a pristine source tree with the
+.B include
+patches listed in the config file applied, then installs it. Does not start a
+terminal. See
+.B CONFIGURATION
+and
+.BR REBUILDING .
 .TP
 .BI \-e " command " [ " arguments " "... ]"
 st executes
@@ -159,10 +179,55 @@ Copy the selected text to the clipboard selection.
 .TP
 .B Ctrl-Shift-v
 Paste from the clipboard selection.
-.SH CUSTOMIZATION
-.B st
-can be customized by creating a custom config.h and (re)compiling the source
-code. This keeps it fast, secure and simple.
+.SH CONFIGURATION
+.B dst
+reads
+.I ~/.config/dst/config
+(or
+.IR $XDG_CONFIG_HOME/dst/config )
+at startup. It is a line-oriented file: one directive per line, words
+separated by whitespace, a leading
+.B #
+marks a comment line, and
+.B set $name value
+defines a variable that is substituted as
+.B $name
+on later lines. Recognised directives set the font, colors
+.RB ( color0 .. color15 ,
+.BR foreground ,
+.BR background ,
+.BR cursor ),
+and assorted appearance and behaviour values
+.RB ( borderpx ,
+.BR tabspaces ,
+.BR cursorshape ,
+and others). Unknown or malformed lines are reported on stderr with a line
+number and skipped. A missing file leaves the compiled-in defaults in place.
+Changing a setting takes effect on the next launch \(em no recompile.
+.PP
+A sample configuration listing every directive is installed as
+.IR config.sample .
+.SH REBUILDING
+Lines of the form
+.B include
+.I url
+name an st patch (a unified diff). They are ignored on a normal launch and are
+consumed only by
+.BR "dst \-\-rebuild" ,
+which copies a pristine source tree, applies each patch in order with
+.BR patch (1),
+rebuilds with the system toolchain, and installs the result only if the build
+succeeds. Remove an
+.B include
+line and rebuild to drop that patch.
+.SH FILES
+.TP
+.I ~/.config/dst/config
+Runtime configuration and patch list read at startup and by \-\-rebuild.
+.TP
+.I ~/.cache/dst
+Pristine source, fetched patches, and the temporary build tree used by
+\-\-rebuild.
 .SH AUTHORS
 See the LICENSE file for the authors.
 .SH LICENSE

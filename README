@@ -1,34 +1,74 @@
-st - simple terminal
---------------------
-st is a simple terminal emulator for X which sucks less.
+dst 0.1 - dynamic suckless terminal
+-----------------------------------
+dst 0.1 is a fork of st 0.9.3 you configure with a runtime text file and patch
+declaratively - no recompiling to change settings.
+
+It keeps st's minimalism (small diff against upstream, no extra
+dependencies) but moves everyday settings out of config.h and into a
+plain-text file read at startup, in the style of an rc file. A separate
+`dst --rebuild` step manages which upstream st patches are compiled in,
+driven by the same config file.
+
+
+What's different from st
+------------------------
+1. Runtime configuration. dst reads ~/.config/dst/config (or
+   $XDG_CONFIG_HOME/dst/config) at startup and applies it over the
+   compiled-in defaults. Edit the file, relaunch - no recompile. See
+   config.sample for every directive. Precedence is:
+       compiled defaults  <  config file  <  command-line flags
+
+2. Declarative patches. Lines like
+       include https://st.suckless.org/patches/scrollback/st-scrollback-0.9.2.diff
+   are ignored on a normal launch and read only by `dst --rebuild`, which
+   fetches each diff, applies it to a clean source tree, rebuilds, and
+   installs the result only on success (a failed build never replaces the
+   working binary).
+
+Keybindings and shortcuts remain compile-time (config.def.h) for now.
 
 
 Requirements
 ------------
-In order to build st you need the Xlib header files.
+In order to build dst you need the Xlib header files.
+`dst --rebuild` additionally uses cc, make, patch and curl at runtime.
 
 
 Installation
 ------------
-Edit config.mk to match your local setup (st is installed into
-the /usr/local namespace by default).
+Edit config.mk to match your local setup (dst is installed into the
+/usr/local namespace by default).
 
-Afterwards enter the following command to build and install st (if
+Afterwards enter the following command to build and install dst (if
 necessary as root):
 
     make clean install
 
 
-Running st
-----------
-If you did not install st with make clean install, you must compile
-the st terminfo entry with the following command:
+Running dst
+-----------
+If you did not install dst with make clean install, you must compile the
+terminfo entry with the following command:
 
     tic -sx st.info
 
-See the man page for additional details.
+dst keeps st's terminfo (TERM=st-256color) for application compatibility.
+See the man page (man dst) for configuration and rebuild details.
+
+
+Configuration
+-------------
+Copy the sample and edit it:
+
+    mkdir -p ~/.config/dst
+    cp config.sample ~/.config/dst/config
+
+Then relaunch dst. To change which patches are built in, add or remove
+`include` lines and run `dst --rebuild`.
+
 
 Credits
 -------
-Based on Aurélien APTEL <aurelien dot aptel at gmail dot com> bt source code.
-
+Based on st (https://st.suckless.org) by the suckless community, which
+is based on Aurélien APTEL <aurelien dot aptel at gmail dot com> original st
+source code.

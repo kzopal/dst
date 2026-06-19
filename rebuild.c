@@ -1,0 +1,273 @@
+/* See LICENSE file for copyright and license details. */
+
+/*
+ * dst: `dst --rebuild`.
+ *
+ * Reads the `include <url>` patch directives from ~/.config/dst/config and
+ * rebuilds st with those patches applied:
+ *
+ *   1. start from a pristine source tree (copy-clean-then-patch, so removing
+ *      an include line drops that patch on the next rebuild);
+ *   2. fetch each diff (cached locally) and apply it in order with patch -p1;
+ *   3. build to a temporary location with the system toolchain;
+ *   4. only on success move the binary into place (a failed rebuild never
+ *      clobbers the working binary).
+ *
+ * This is orchestration only: curl/patch/make/cc do the real work. The
+ * component is independent of the runtime parser; the one thing it shares is
+ * config_path(), so it reads the same file.
+ *
+ * Locations (all overridable):
+ *   pristine source   $DST_SRC              else $cache/src (auto-cloned from DST_REPO)
+ *   cache root        $XDG_CACHE_HOME/dst   else ~/.cache/dst   (build/, patches/)
+ *   install target    $DST_BIN              else ~/.local/bin/dst
+ */
+
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+#include "rebuild.h"
+
+extern int config_path(char *buf, size_t len);
+
+#define MAXINC  128
+#define MAXLINE 1024
+
+static char cachedir[1024];
+static char srcdir[1024];
+static char builddir[1024];
+static char patchdir[1024];
+static char installpath[1024];
+static int  srcexplicit;  /* DST_SRC was set by user */
+
+/* Run argv as a child process; return its exit status (0 == success). */
+static int
+run(char *argv[])
+{
+	pid_t pid;
+	int status;
+
+	fflush(NULL);
+	if ((pid = fork()) < 0) {
+		perror("dst: fork");
+		return -1;
+	}
+	if (pid == 0) {
+		execvp(argv[0], argv);
+		fprintf(stderr, "dst: %s: %s\n", argv[0], strerror(errno));
+		_exit(127);
+	}
+	if (waitpid(pid, &status, 0) < 0)
+		return -1;
+	return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+}
+
+/* True if `tool` is found on PATH. */
+static int
+have(const char *tool)
+{
+	char cmd[256];
+	char *argv[] = { "sh", "-c", cmd, NULL };
+
+	snprintf(cmd, sizeof cmd, "command -v %s >/dev/null 2>&1", tool);
+	return run(argv) == 0;
+}
+
+static const char *
+urlbasename(const char *url)
+{
+	const char *b = strrchr(url, '/');
+	return b ? b + 1 : url;
+}
+
+static void
+setpaths(void)
+{
+	const char *home = getenv("HOME");
+	const char *xdgc = getenv("XDG_CACHE_HOME");
+	const char *src = getenv("DST_SRC");
+	const char *bin = getenv("DST_BIN");
+
+	if (!home)
+		home = ".";
+	if (xdgc && *xdgc)
+		snprintf(cachedir, sizeof cachedir, "%s/dst", xdgc);
+	else
+		snprintf(cachedir, sizeof cachedir, "%s/.cache/dst", home);
+	snprintf(builddir, sizeof builddir, "%s/build", cachedir);
+	snprintf(patchdir, sizeof patchdir, "%s/patches", cachedir);
+	srcexplicit = (src && *src);
+	if (srcexplicit)
+		snprintf(srcdir, sizeof srcdir, "%s", src);
+	else
+		snprintf(srcdir, sizeof srcdir, "%s/src", cachedir);
+	if (bin && *bin)
+		snprintf(installpath, sizeof installpath, "%s", bin);
+	else
+		snprintf(installpath, sizeof installpath, "%s/.local/bin/dst", home);
+}
+
+/* Collect include URLs from the config file. Returns count, or -1 on error. */
+static int
+read_includes(char inc[][MAXLINE], int max)
+{
+	char path[1024], raw[MAXLINE];
+	FILE *f;
+	int n = 0, lineno = 0;
+
+	if (!config_path(path, sizeof path)) {
+		fprintf(stderr, "dst: cannot locate config (set HOME or XDG_CONFIG_HOME)\n");
+		return -1;
+	}
+	if (!(f = fopen(path, "r"))) {
+		fprintf(stderr, "dst: no config at %s; nothing to rebuild\n", path);
+		return -1;
+	}
+	while (fgets(raw, sizeof raw, f)) {
+		char *s = raw, *url, *e;
+
+		lineno++;
+		while (*s == ' ' || *s == '\t')
+			s++;
+		if (*s == '#' || *s == '\n' || *s == '\r' || *s == '\0')
+			continue;
+		/* only "include" lines concern us; everything else is parser turf */
+		if (strncmp(s, "include", 7) != 0 || (s[7] != ' ' && s[7] != '\t'))
+			continue;
+		s += 7;
+		while (*s == ' ' || *s == '\t')
+			s++;
+		url = s;
+		for (e = url + strlen(url); e > url && (e[-1] == '\n' ||
+		     e[-1] == '\r' || e[-1] == ' ' || e[-1] == '\t'); )
+			*--e = '\0';
+		if (*url == '\0') {
+			fprintf(stderr, "dst: %s:%d: include with no URL\n", path, lineno);
+			continue;
+		}
+		if (n >= max) {
+			fprintf(stderr, "dst: too many include lines (max %d)\n", max);
+			break;
+		}
+		snprintf(inc[n++], MAXLINE, "%s", url);
+	}
+	fclose(f);
+	return n;
+}
+
+int
+rebuild(void)
+{
+	static char inc[MAXINC][MAXLINE];
+	char cache[2048], built[2048], instdir[1024], *slash;
+	int n, i;
+
+	setpaths();
+
+	if ((n = read_includes(inc, MAXINC)) < 0)
+		return 1;
+
+	/* cc/make are always needed; curl/patch only when there are patches */
+	{
+		const char *always[] = { "cc", "make" };
+		const char *forpatch[] = { "patch", "curl" };
+		for (i = 0; i < (int)(sizeof always / sizeof always[0]); i++)
+			if (!have(always[i])) {
+				fprintf(stderr, "dst: required tool not found: %s\n", always[i]);
+				return 1;
+			}
+		for (i = 0; n > 0 && i < (int)(sizeof forpatch / sizeof forpatch[0]); i++)
+			if (!have(forpatch[i])) {
+				fprintf(stderr, "dst: required tool not found: %s\n", forpatch[i]);
+				return 1;
+			}
+	}
+
+	if (access(srcdir, R_OK) != 0) {
+		if (!srcexplicit) {
+			/* auto-bootstrap: clone the repo at the pinned tag */
+			if (!have("git")) {
+				fprintf(stderr, "dst: git required to clone source from %s\n", DST_REPO);
+				return 1;
+			}
+			printf("dst: cloning source from %s (tag %s)\n", DST_REPO, DST_TAG);
+			{ char *a[] = { "git", "clone", "--branch", DST_TAG, "--depth", "1",
+			                DST_REPO, srcdir, NULL };
+			  if (run(a)) {
+				fprintf(stderr,
+				    "dst: failed to clone source from %s\n"
+				    "     set DST_SRC to point at a local checkout, or check connectivity\n",
+				    DST_REPO);
+				return 1;
+			  } }
+		} else {
+			fprintf(stderr,
+			    "dst: pristine source not found at %s\n"
+			    "     check that DST_SRC points at a valid dst source tree\n",
+			    srcdir);
+			return 1;
+		}
+	}
+
+	/* ensure cache dirs exist */
+	{ char *a[] = { "mkdir", "-p", patchdir, NULL }; if (run(a)) return 1; }
+
+	/* copy-clean-then-patch: wipe build dir, recopy pristine source */
+	{ char *a[] = { "rm", "-rf", builddir, NULL }; if (run(a)) return 1; }
+	{ char *a[] = { "cp", "-R", srcdir, builddir, NULL };
+	  if (run(a)) { fprintf(stderr, "dst: failed to copy source tree\n"); return 1; } }
+	/* drop VCS metadata so it can't interfere with the build */
+	{ char g[1100]; snprintf(g, sizeof g, "%s/.git", builddir);
+	  char *a[] = { "rm", "-rf", g, NULL }; run(a); }
+
+	/* fetch + apply each patch, in listed order */
+	for (i = 0; i < n; i++) {
+		snprintf(cache, sizeof cache, "%s/%s", patchdir, urlbasename(inc[i]));
+		if (access(cache, R_OK) != 0) {
+			char *a[] = { "curl", "-fsSL", "-o", cache, inc[i], NULL };
+			printf("dst: fetching %s\n", inc[i]);
+			if (run(a)) {
+				fprintf(stderr, "dst: failed to fetch %s\n", inc[i]);
+				return 1;
+			}
+		}
+		printf("dst: applying %s\n", urlbasename(inc[i]));
+		{ char *a[] = { "patch", "-p1", "-d", builddir, "-i", cache, NULL };
+		  if (run(a)) {
+			fprintf(stderr, "dst: patch failed: %s\n"
+			    "     fix or remove the include line; rejects are under %s\n",
+			    urlbasename(inc[i]), builddir);
+			return 1;
+		  } }
+	}
+
+	/* build into the temporary build dir; clean first so that a dirty
+	 * source tree (stale .o/binary) can't masquerade as up-to-date */
+	{ char *a[] = { "make", "-C", builddir, "clean", NULL }; run(a); }
+	printf("dst: building\n");
+	{ char *a[] = { "make", "-C", builddir, NULL };
+	  if (run(a)) { fprintf(stderr, "dst: build failed; working binary left untouched\n"); return 1; } }
+
+	/* atomic-ish install: only now move the fresh binary into place */
+	snprintf(built, sizeof built, "%s/dst", builddir);
+	if (access(built, X_OK) != 0) {
+		fprintf(stderr, "dst: build produced no binary at %s\n", built);
+		return 1;
+	}
+	snprintf(instdir, sizeof instdir, "%s", installpath);
+	if ((slash = strrchr(instdir, '/'))) {
+		*slash = '\0';
+		char *a[] = { "mkdir", "-p", instdir, NULL };
+		run(a);
+	}
+	{ char *a[] = { "mv", "-f", built, installpath, NULL };
+	  if (run(a)) { fprintf(stderr, "dst: install to %s failed\n", installpath); return 1; } }
+
+	printf("dst: installed %s (%d patch%s applied)\n",
+	       installpath, n, n == 1 ? "" : "es");
+	return 0;
+}

@@ -1,0 +1,6 @@
+# generated from config.def.h by the Makefile
+config.h
+# build artifacts
+*.o
+dst
+dst-*.tar.gz
