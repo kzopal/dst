@@ -424,7 +424,7 @@ edit_config(void)
 		ensure_config();
 
 	if (!(editor = getenv("EDITOR")))
-		editor = "vi";
+		editor = "nano";
 
 	switch ((pid = fork())) {
 	case -1:
