@@ -32,6 +32,11 @@ What's different from st
 
 Keybindings and shortcuts remain compile-time (config.def.h) for now.
 
+Not all upstream st patches apply cleanly to dst because dst touches
+config.def.h (color table, global declarations) and x.c (main). Fixed
+versions of 65 popular patches are maintained at
+https://github.com/kzopal/dst-patches.
+
 
 Requirements
 ------------
