@@ -2036,7 +2036,7 @@ usage(void)
 	    "          [-T title] [-t title] [-w windowid] -l line"
 	    " [stty_args ...]\n"
 	    "       %s --rebuild\n"
-	    "       %s --install\n", argv0, argv0, argv0);
+	    "       %s --install\n", argv0, argv0, argv0, argv0);
 }
 
 int

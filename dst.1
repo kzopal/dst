@@ -55,6 +55,9 @@ dst \- dynamic suckless terminal
 .PP
 .B dst
 .B \-\-rebuild
+.PP
+.B dst
+.B \-\-install
 .SH DESCRIPTION
 .B dst
 is a fork of st, the suckless simple terminal. It keeps st's minimalism but
@@ -138,6 +141,17 @@ terminal. See
 .B CONFIGURATION
 and
 .BR REBUILDING .
+.TP
+.B \-\-install
+creates a default config file at
+.I ~/.config/dst/config
+if none exists, then installs the
+.B dst
+binary under
+.IR /usr/local/bin .
+Falls back to
+.I ~/.local/bin
+on permission errors.
 .TP
 .BI \-e " command " [ " arguments " "... ]"
 st executes
