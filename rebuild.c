@@ -148,19 +148,19 @@ resolve_short_name(const char *shortname)
 
 	snprintf(idxpath, sizeof idxpath, "%s/INDEX", patchdir);
 
-	if (access(idxpath, R_OK) != 0) {
-		char *a[] = { "curl", "-fsSL", "-o", idxpath, PATCHES_BASE "/INDEX", NULL };
-		printf("dst: fetching patch index\n");
-		/* ensure the patches dir exists before curl writes to it */
-		{ char *b[] = { "mkdir", "-p", patchdir, NULL }; run(b); }
-		if (run(a)) {
-			unlink(idxpath);  /* discard partial write */
+	/* always try a fresh fetch (CDN may be stale); fall back to cache */
+	{ char *a[] = { "curl", "-fsSL", "-o", idxpath, PATCHES_BASE "/INDEX", NULL };
+	  printf("dst: fetching patch index\n");
+	  { char *b[] = { "mkdir", "-p", patchdir, NULL }; run(b); }
+	  if (run(a)) {
+		unlink(idxpath);
+		if (access(idxpath, R_OK) != 0) {
 			fprintf(stderr, "dst: failed to fetch patch index from %s\n"
 			    "     use a full URL to bypass short-name lookup\n",
 			    PATCHES_BASE "/INDEX");
 			return NULL;
 		}
-	}
+	} }
 
 	f = fopen(idxpath, "r");
 	if (!f)
@@ -243,6 +243,63 @@ read_includes(char inc[][MAXLINE], int max)
 	return n;
 }
 
+/* Apply a single cached patch (full path) to builddir. Returns 0 on success. */
+static int
+apply_one(const char *cache, const char *builddir)
+{
+	char *a[] = { "patch", "-p1", "--no-backup-if-mismatch", "-d",
+	              (char *)builddir, "-i", (char *)cache, NULL };
+	return run(a);
+}
+
+/* Try applying patches in a specific order (indices into inc[]). */
+static int
+try_order(int *order, int n, char inc[][MAXLINE], const char *patchdir,
+          const char *builddir)
+{
+	int i;
+	for (i = 0; i < n; i++) {
+		char cache[2048];
+		snprintf(cache, sizeof cache, "%s/%s", patchdir, urlbasename(inc[order[i]]));
+		if (apply_one(cache, builddir))
+			return -1;
+	}
+	return 0;
+}
+
+/* Brute-force all permutations of includes (max 6). */
+static int
+try_all_orders(int n, char inc[][MAXLINE], const char *srcdir,
+               const char *patchdir, const char *builddir)
+{
+	int order[6], i, j, swap;
+	if (n > 6) return -1;
+	for (i = 0; i < n; i++) order[i] = i;
+	while (1) {
+		{ char *a[] = { "rm", "-rf", (char *)builddir, NULL }; run(a); }
+		{ char *a[] = { "cp", "-R", (char *)srcdir, (char *)builddir, NULL };
+		  if (run(a)) return -1; }
+		{ char g[1100]; snprintf(g, sizeof g, "%s/.git", builddir);
+		  char *a[] = { "rm", "-rf", g, NULL }; run(a); }
+		if (try_order(order, n, inc, patchdir, builddir) == 0) {
+			printf("dst: patches applied (auto-order):");
+			for (i = 0; i < n; i++)
+				printf(" %s", urlbasename(inc[order[i]]));
+			printf("\n");
+			return 0;
+		}
+		/* next permutation (standard next_permutation) */
+		for (i = n - 2; i >= 0 && order[i] >= order[i + 1]; i--);
+		if (i < 0) break;
+		for (j = n - 1; order[j] <= order[i]; j--);
+		swap = order[i]; order[i] = order[j]; order[j] = swap;
+		for (i = i + 1, j = n - 1; i < j; i++, j--) {
+			swap = order[i]; order[i] = order[j]; order[j] = swap;
+		}
+	}
+	return -1;
+}
+
 int
 rebuild(void)
 {
@@ -308,7 +365,7 @@ rebuild(void)
 	{ char g[1100]; snprintf(g, sizeof g, "%s/.git", builddir);
 	  char *a[] = { "rm", "-rf", g, NULL }; run(a); }
 
-	/* fetch + apply each patch, in listed order */
+	/* fetch all patches first */
 	for (i = 0; i < n; i++) {
 		snprintf(cache, sizeof cache, "%s/%s", patchdir, urlbasename(inc[i]));
 		if (access(cache, R_OK) != 0) {
@@ -319,14 +376,53 @@ rebuild(void)
 				return 1;
 			}
 		}
-		printf("dst: applying %s\n", urlbasename(inc[i]));
-		{ char *a[] = { "patch", "-p1", "--no-backup-if-mismatch", "-d", builddir, "-i", cache, NULL };
-		  if (run(a)) {
-			fprintf(stderr, "dst: patch failed: %s\n"
-			    "     fix or remove the include line; rejects are under %s\n",
-			    urlbasename(inc[i]), builddir);
+	}
+
+	/* try user order first, then brute-force all permutations if needed */
+	{
+		int order[6];  /* cap at 6 for permutation speed */
+		int n2 = n > 6 ? 6 : n;
+		int ok = 1;
+
+		for (i = 0; i < n2; i++) {
+			char c[2048];
+			snprintf(c, sizeof c, "%s/%s", patchdir, urlbasename(inc[i]));
+			printf("dst: applying %s\n", urlbasename(inc[i]));
+			if (apply_one(c, builddir)) {
+				ok = 0;
+				break;
+			}
+		}
+
+		if (!ok && n <= 6) {
+			printf("dst: trying all patch orderings...\n");
+			ok = (try_all_orders(n, inc, srcdir, patchdir, builddir) == 0);
+		}
+
+		if (ok && i < n) {
+			/* continue with remaining patches in user order */
+			for (; i < n; i++) {
+				char c[2048];
+				snprintf(c, sizeof c, "%s/%s", patchdir, urlbasename(inc[i]));
+				printf("dst: applying %s\n", urlbasename(inc[i]));
+				if (apply_one(c, builddir)) {
+					fprintf(stderr, "dst: patch failed: %s\n"
+					    "     fix or remove the include line; rejects are under %s\n",
+					    urlbasename(inc[i]), builddir);
+					return 1;
+				}
+			}
+		}
+
+		if (!ok && n <= 6) {
+			fprintf(stderr, "dst: no ordering of patches succeeds\n"
+			    "     try using a pre-combined patch (e.g. combo-5) instead\n");
 			return 1;
-		  } }
+		}
+		if (!ok) {
+			fprintf(stderr, "dst: patch failed; rejects are under %s\n", builddir);
+			return 1;
+		}
 	}
 
 	/* build into the temporary build dir; clean first so that a dirty
