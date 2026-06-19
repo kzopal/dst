@@ -17,9 +17,10 @@
  */
 
 /*
- * dst: `--rebuild` entry point. Reads the `include` patch directives from the
- * dst config, rebuilds st from a pristine source tree with those patches
- * applied, and atomically installs the result. Returns a process exit code.
- * Defined in rebuild.c; dispatched from main().
+ * dst: `--rebuild` rebuilds st from a pristine source tree with the declared
+ * patches applied and atomically installs the result. `--install` ensures a
+ * config file exists and installs the binary under /usr/local.
+ * Both return a process exit code. Defined in rebuild.c.
  */
 int rebuild(void);
+int install_dst(void);

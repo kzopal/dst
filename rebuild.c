@@ -44,6 +44,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 
 #include "rebuild.h"
@@ -286,4 +287,121 @@ rebuild(void)
 	printf("dst: installed %s (%d patch%s applied)\n",
 	       installpath, n, n == 1 ? "" : "es");
 	return 0;
+}
+
+static void
+makedirs(const char *path)
+{
+	char buf[1024], *p;
+	snprintf(buf, sizeof buf, "%s", path);
+	for (p = buf + 1; *p; p++)
+		if (*p == '/') {
+			*p = '\0';
+			mkdir(buf, 0755);
+			*p = '/';
+		}
+	/* final component */
+	mkdir(buf, 0755);
+}
+
+static int
+ensure_config(void)
+{
+	char path[1024], dir[1024], *slash;
+	FILE *f;
+
+	if (!config_path(path, sizeof path))
+		return -1;
+	if (access(path, F_OK) == 0)
+		return 0;   /* already exists */
+
+	snprintf(dir, sizeof dir, "%s", path);
+	if ((slash = strrchr(dir, '/')))
+		*slash = '\0';
+	makedirs(dir);
+
+	if (!(f = fopen(path, "w"))) {
+		fprintf(stderr, "dst: cannot create %s: %s\n", path, strerror(errno));
+		return -1;
+	}
+	fprintf(f, "# dst configuration\n"
+	           "# See dst(1) and config.sample for all directives.\n"
+	           "\n"
+	           "font  \"monospace:pixelsize=12:antialias=true:autohint=true\"\n"
+	           "shell %s\n"
+	           "termname st-256color\n"
+	           "borderpx 2\n"
+	           "cursorshape 2\n"
+	           "cursorthickness 2\n"
+	           "bellvolume 0\n"
+	           "allowaltscreen 1\n"
+	           "\n"
+	           "# Add include lines here for dst --rebuild, e.g.:\n"
+	           "# include https://raw.githubusercontent.com/kzopal/dst-patches/master/st-scrollback-0.9.2.diff\n",
+	           getenv("SHELL") ? getenv("SHELL") : "/bin/sh");
+	fclose(f);
+	printf("dst: created %s\n", path);
+	return 0;
+}
+
+static int
+install_binary(const char *self, const char *target)
+{
+	char dir[1024], *slash, *a[] = { "install", "-m", "755",
+	                                 (char *)self, (char *)target, NULL };
+
+	if (strcmp(self, target) == 0)
+		return 0;  /* already there */
+	snprintf(dir, sizeof dir, "%s", target);
+	if ((slash = strrchr(dir, '/')))
+		*slash = '\0';
+	makedirs(dir);
+	if (access(dir, W_OK) != 0) {
+		fprintf(stderr, "dst: write permission denied for %s\n", dir);
+		fprintf(stderr, "     try: sudo dst --install\n");
+	} else if (run(a) != 0) {
+		fprintf(stderr, "dst: install to %s failed\n", target);
+		return -1;
+	}
+	if (access(target, X_OK) == 0) {
+		printf("dst: installed %s\n", target);
+		return 0;
+	}
+	return -1;
+}
+
+int
+install_dst(void)
+{
+	char self[1024];
+	ssize_t n;
+	char *first_try = "/usr/local/bin/dst";
+	char *fallback;
+	const char *home = getenv("HOME");
+
+	n = readlink("/proc/self/exe", self, sizeof self - 1);
+	if (n < 0) {
+		perror("dst: readlink /proc/self/exe");
+		return 1;
+	}
+	self[n] = '\0';
+
+	ensure_config();
+
+	if (install_binary(self, first_try) == 0)
+		return 0;
+
+	/* fallback to ~/.local/bin/dst */
+	if (home) {
+		static char fb[1024];
+		snprintf(fb, sizeof fb, "%s/.local/bin/dst", home);
+		fallback = fb;
+	} else {
+		fallback = NULL;
+	}
+	if (fallback && install_binary(self, fallback) == 0)
+		return 0;
+
+	fprintf(stderr, "dst: could not install to any location\n");
+	return 1;
 }

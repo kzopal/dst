@@ -2035,7 +2035,8 @@ usage(void)
 	    " [-n name] [-o file]\n"
 	    "          [-T title] [-t title] [-w windowid] -l line"
 	    " [stty_args ...]\n"
-	    "       %s --rebuild\n", argv0, argv0, argv0);
+	    "       %s --rebuild\n"
+	    "       %s --install\n", argv0, argv0, argv0);
 }
 
 int
@@ -2045,6 +2046,8 @@ main(int argc, char *argv[])
 	 * of starting a terminal. Handle it before any X setup. */
 	if (argc > 1 && !strcmp(argv[1], "--rebuild"))
 		return rebuild();
+	if (argc > 1 && !strcmp(argv[1], "--install"))
+		return install_dst();
 
 	xw.l = xw.t = 0;
 	xw.isfixed = False;
