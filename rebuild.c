@@ -267,6 +267,62 @@ try_order(int *order, int n, char inc[][MAXLINE], const char *patchdir,
 	return 0;
 }
 
+/* Save a working order to cache so subsequent runs skip the brute-force. */
+static void
+save_order(int *order, int n, char inc[][MAXLINE], const char *patchdir)
+{
+	char path[2048];
+	FILE *f;
+	int i;
+	snprintf(path, sizeof path, "%s/order", patchdir);
+	if (!(f = fopen(path, "w")))
+		return;
+	for (i = 0; i < n; i++)
+		fprintf(f, "%s\n", urlbasename(inc[order[i]]));
+	fclose(f);
+}
+
+/* If a cached order exists for the current patch set, apply it and return 0.
+ * Returns -1 when there is no cache or the set has changed. */
+static int
+try_cached_order(char inc[][MAXLINE], int n, const char *srcdir,
+                 const char *patchdir, const char *builddir)
+{
+	char path[2048], line[1024];
+	FILE *f;
+	int order[6], i, n2 = 0;
+
+	snprintf(path, sizeof path, "%s/order", patchdir);
+	if (!(f = fopen(path, "r")))
+		return -1;
+
+	while (n2 < n && n2 < 6 && fgets(line, sizeof line, f)) {
+		char *p = line, *e;
+		while (*p == ' ' || *p == '\t') p++;
+		if (*p == '\n' || *p == '\0') continue;
+		e = p + strlen(p);
+		while (e > p && (*--e == '\n' || *e == '\r')) *e = '\0';
+		for (i = 0; i < n; i++) {
+			if (strcmp(urlbasename(inc[i]), p) == 0) {
+				order[n2++] = i;
+				break;
+			}
+		}
+		if (i == n) { fclose(f); return -1; }  /* unknown patch */
+	}
+	fclose(f);
+	if (n2 != n) return -1;
+
+	/* set up fresh builddir */
+	{ char *a[] = { "rm", "-rf", (char *)builddir, NULL }; run(a); }
+	{ char *a[] = { "cp", "-R", (char *)srcdir, (char *)builddir, NULL };
+	  if (run(a)) return -1; }
+	{ char g[1100]; snprintf(g, sizeof g, "%s/.git", builddir);
+	  char *a[] = { "rm", "-rf", g, NULL }; run(a); }
+
+	return try_order(order, n, inc, patchdir, builddir);
+}
+
 /* Brute-force all permutations of includes (max 6). */
 static int
 try_all_orders(int n, char inc[][MAXLINE], const char *srcdir,
@@ -286,6 +342,7 @@ try_all_orders(int n, char inc[][MAXLINE], const char *srcdir,
 			for (i = 0; i < n; i++)
 				printf(" %s", urlbasename(inc[order[i]]));
 			printf("\n");
+			save_order(order, n, inc, patchdir);
 			return 0;
 		}
 		/* next permutation (standard next_permutation) */
@@ -378,25 +435,41 @@ rebuild(void)
 		}
 	}
 
-	/* try user order first, then brute-force all permutations if needed */
+	/* strategy: cached order > user order > brute-force all permutations */
 	{
-		int order[6];  /* cap at 6 for permutation speed */
-		int n2 = n > 6 ? 6 : n;
-		int ok = 1;
+		int order[6], n2 = n > 6 ? 6 : n, ok = 0;
 
-		for (i = 0; i < n2; i++) {
-			char c[2048];
-			snprintf(c, sizeof c, "%s/%s", patchdir, urlbasename(inc[i]));
-			printf("dst: applying %s\n", urlbasename(inc[i]));
-			if (apply_one(c, builddir)) {
-				ok = 0;
-				break;
+		/* 1. try cached order if available */
+		if (try_cached_order(inc, n2, srcdir, patchdir, builddir) == 0) {
+			printf("dst: applied cached order\n");
+			ok = 1;
+			i = n2;  /* resume after the cached prefix */
+		}
+
+		/* 2. try user order */
+		if (!ok) {
+			{ char *a[] = { "rm", "-rf", builddir, NULL }; run(a); }
+			{ char *a[] = { "cp", "-R", srcdir, builddir, NULL };
+			  if (run(a)) return 1; }
+			{ char g[1100]; snprintf(g, sizeof g, "%s/.git", builddir);
+			  char *a[] = { "rm", "-rf", g, NULL }; run(a); }
+
+			ok = 1;
+			for (i = 0; i < n2; i++) {
+				char c[2048];
+				snprintf(c, sizeof c, "%s/%s", patchdir, urlbasename(inc[i]));
+				printf("dst: applying %s\n", urlbasename(inc[i]));
+				if (apply_one(c, builddir)) { ok = 0; break; }
 			}
 		}
 
+		/* 3. brute-force all permutations */
 		if (!ok && n <= 6) {
 			printf("dst: trying all patch orderings...\n");
-			ok = (try_all_orders(n, inc, srcdir, patchdir, builddir) == 0);
+		if (try_all_orders(n, inc, srcdir, patchdir, builddir) == 0) {
+				ok = 1;
+				i = n;
+			}
 		}
 
 		if (ok && i < n) {
