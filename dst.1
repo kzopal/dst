@@ -241,11 +241,25 @@ A sample configuration listing every directive is installed as
 .SH REBUILDING
 Lines of the form
 .B include
-.I url
-name an st patch (a unified diff). They are ignored on a normal launch and are
-consumed only by
-.BR "dst \-\-rebuild" ,
-which copies a pristine source tree, applies each patch in order with
+.IR name-or-url
+identify an st patch to apply (a unified diff). They are ignored on a normal
+launch and are consumed only by
+.BR "dst \-\-rebuild" .
+.PP
+If
+.I name-or-url
+contains a scheme
+.RB ( https:// ...),
+it is used as-is. Otherwise it is looked up by short name in the patch index at
+.IR https://github.com/kzopal/dst-patches .
+For example,
+.B "include scrollback"
+resolves to the full patch URL. Use
+.B "include combo-5"
+for the pre-combined patch bundle recommended in the README.
+.PP
+.B \-\-rebuild
+copies a pristine source tree, applies each patch in order with
 .BR patch (1),
 rebuilds with the system toolchain, and installs the result only if the build
 succeeds. Remove an

@@ -87,8 +87,8 @@ allowwindowops  0
 # them in the order listed to a clean source tree, rebuilds, and installs the
 # result. Remove a line and re-run 'dst --rebuild' to drop that patch.
 # ---------------------------------------------------------------------------
-# include https://st.suckless.org/patches/scrollback/st-scrollback-0.9.2.diff
-# include https://st.suckless.org/patches/clipboard/st-clipboard-0.8.3.diff
+# include scrollback
+# include vertcenter
 
 # ---------------------------------------------------------------------------
 # Not configurable at runtime in v1 (still compile-time in the source):

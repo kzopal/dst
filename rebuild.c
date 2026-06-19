@@ -128,6 +128,59 @@ setpaths(void)
 		snprintf(installpath, sizeof installpath, "%s/.local/bin/dst", home);
 }
 
+/* Base URL for dst-patches; used to resolve short include names. */
+#define PATCHES_BASE "https://raw.githubusercontent.com/kzopal/dst-patches/master"
+
+/*
+ * Return the INDEX‑derived full URL for a short include name, or NULL if the
+ * name is unknown.  The INDEX is fetched (if not already cached) into
+ * patchdir so it persists across rebuilds.
+ */
+static const char *
+resolve_short_name(const char *shortname)
+{
+	static char url[2048];
+	char idxpath[2048], line[1024], name[256], file[256];
+	FILE *f;
+
+	if (!patchdir[0])
+		setpaths();
+
+	snprintf(idxpath, sizeof idxpath, "%s/INDEX", patchdir);
+
+	if (access(idxpath, R_OK) != 0) {
+		char *a[] = { "curl", "-fsSL", "-o", idxpath, PATCHES_BASE "/INDEX", NULL };
+		printf("dst: fetching patch index\n");
+		if (run(a)) {
+			fprintf(stderr, "dst: failed to fetch patch index from %s\n"
+			    "     use a full URL to bypass short-name lookup\n",
+			    PATCHES_BASE "/INDEX");
+			return NULL;
+		}
+	}
+
+	f = fopen(idxpath, "r");
+	if (!f)
+		return NULL;
+
+	while (fgets(line, sizeof line, f)) {
+		char *p = line;
+		while (*p == ' ' || *p == '\t')
+			p++;
+		if (*p == '#' || *p == '\n' || *p == '\0')
+			continue;
+		if (sscanf(p, "%255s %255s", name, file) < 2)
+			continue;
+		if (strcmp(name, shortname) == 0) {
+			snprintf(url, sizeof url, "%s/%s", PATCHES_BASE, file);
+			fclose(f);
+			return url;
+		}
+	}
+	fclose(f);
+	return NULL;
+}
+
 /* Collect include URLs from the config file. Returns count, or -1 on error. */
 static int
 read_includes(char inc[][MAXLINE], int max)
@@ -170,7 +223,18 @@ read_includes(char inc[][MAXLINE], int max)
 			fprintf(stderr, "dst: too many include lines (max %d)\n", max);
 			break;
 		}
-		snprintf(inc[n++], MAXLINE, "%s", url);
+		/* resolve short names that have no scheme vs full URLs */
+		if (strstr(url, "://")) {
+			snprintf(inc[n++], MAXLINE, "%s", url);
+		} else {
+			const char *resolved = resolve_short_name(url);
+			if (!resolved) {
+				fprintf(stderr, "dst: %s:%d: unknown patch \"%s\"\n",
+				    path, lineno, url);
+				continue;
+			}
+			snprintf(inc[n++], MAXLINE, "%s", resolved);
+		}
 	}
 	fclose(f);
 	return n;
@@ -336,8 +400,10 @@ ensure_config(void)
 	           "bellvolume 0\n"
 	           "allowaltscreen 1\n"
 	           "\n"
-	           "# Add include lines here for dst --rebuild, e.g.:\n"
-	           "# include https://raw.githubusercontent.com/kzopal/dst-patches/master/st-scrollback-0.9.2.diff\n",
+		           "# Add include lines here for dst --rebuild, e.g.:\n"
+		           "# include scrollback\n"
+		           "# include vertcenter\n"
+		           "# include https://raw.githubusercontent.com/…/patch.diff\n",
 	           getenv("SHELL") ? getenv("SHELL") : "/bin/sh");
 	fclose(f);
 	printf("dst: created %s\n", path);
