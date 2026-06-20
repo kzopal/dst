@@ -252,6 +252,52 @@ apply_one(const char *cache, const char *builddir)
 	return run(a);
 }
 
+/* Check every pair of patches for irreconcilable conflicts (both orderings fail).
+ * Returns number of conflicts found (0 = all pairs composable). */
+static int
+check_conflicts(char inc[][MAXLINE], int n, const char *srcdir,
+                const char *patchdir)
+{
+	static const char tmp[] = "/tmp/dst-paircheck";
+	int i, j, conflicts = 0;
+
+	for (i = 0; i < n; i++) {
+		for (j = i + 1; j < n; j++) {
+			char ci[2048], cj[2048];
+			int ij, ji;
+			char g[1100];
+
+			snprintf(ci, sizeof ci, "%s/%s", patchdir, urlbasename(inc[i]));
+			snprintf(cj, sizeof cj, "%s/%s", patchdir, urlbasename(inc[j]));
+
+			/* try i -> j */
+			{ char *a[] = { "rm", "-rf", (char *)tmp, NULL }; run(a); }
+			{ char *a[] = { "cp", "-R", (char *)srcdir, (char *)tmp, NULL };
+			  if (run(a)) continue; }
+			snprintf(g, sizeof g, "%s/.git", tmp);
+			{ char *a[] = { "rm", "-rf", g, NULL }; run(a); }
+			ij = (apply_one(ci, tmp) == 0 && apply_one(cj, tmp) != 0);
+
+			/* try j -> i */
+			{ char *a[] = { "rm", "-rf", (char *)tmp, NULL }; run(a); }
+			{ char *a[] = { "cp", "-R", (char *)srcdir, (char *)tmp, NULL };
+			  if (run(a)) continue; }
+			snprintf(g, sizeof g, "%s/.git", tmp);
+			{ char *a[] = { "rm", "-rf", g, NULL }; run(a); }
+			ji = (apply_one(cj, tmp) == 0 && apply_one(ci, tmp) != 0);
+
+			if (ij && ji) {
+				fprintf(stderr, "dst: conflict: %s <-> %s\n",
+				    urlbasename(inc[i]), urlbasename(inc[j]));
+				conflicts++;
+			}
+		}
+	}
+
+	{ char *a[] = { "rm", "-rf", (char *)tmp, NULL }; run(a); }
+	return conflicts;
+}
+
 /* Try applying patches in a specific order (indices into inc[]). */
 static int
 try_order(int *order, int n, char inc[][MAXLINE], const char *patchdir,
@@ -432,6 +478,15 @@ rebuild(void)
 				fprintf(stderr, "dst: failed to fetch %s\n", inc[i]);
 				return 1;
 			}
+		}
+	}
+
+	/* check all pairs for irreconcilable conflicts before attempting */
+	if (n > 1) {
+		int c = check_conflicts(inc, n, srcdir, patchdir);
+		if (c > 0) {
+			fprintf(stderr, "dst: %d irreconcilable conflict(s) — remove or replace one patch from each pair\n", c);
+			return 1;
 		}
 	}
 
