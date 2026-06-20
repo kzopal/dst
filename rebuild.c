@@ -544,7 +544,7 @@ rebuild(void)
 
 		if (!ok && n <= 6) {
 			fprintf(stderr, "dst: no ordering of patches succeeds\n"
-			    "     try using a pre-combined patch (e.g. combo-5) instead\n");
+			    "     try using a pre-combined patch (e.g. scrollback-plus) instead\n");
 			return 1;
 		}
 		if (!ok) {
