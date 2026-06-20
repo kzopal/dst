@@ -150,11 +150,11 @@ creates a default config file at
 .I ~/.config/dst/config
 if none exists, then installs the
 .B dst
-binary under
+binary to
 .IR /usr/local/bin .
 Falls back to
 .I ~/.local/bin
-on permission errors.
+on permission errors. Creates parent directories on demand.
 .TP
 .B \-\-edit
 opens the config file
@@ -162,7 +162,7 @@ opens the config file
 in
 .BR $EDITOR ,
 or
-.B vi
+.B nano
 if unset. Creates a default config if none exists.
 .TP
 .BI \-e " command " [ " arguments " "... ]"
@@ -265,6 +265,13 @@ rebuilds with the system toolchain, and installs the result only if the build
 succeeds. Remove an
 .B include
 line and rebuild to drop that patch.
+.PP
+If the listed order fails, every permutation of up to 6 patches is tried
+automatically. The working order is cached so subsequent rebuilds skip the
+search. Before any attempt, each pair of patches is tested in both directions;
+irreconcilable pairs are reported and the rebuild is aborted. This pre-flight
+check catches conflicting patches (e.g. two patches modifying the same line) in
+under a second.
 .SH FILES
 .TP
 .I ~/.config/dst/config
