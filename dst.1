@@ -223,18 +223,94 @@ marks a comment line, and
 .B set $name value
 defines a variable that is substituted as
 .B $name
-on later lines. Recognised directives set the font, colors
-.RB ( color0 .. color15 ,
-.BR foreground ,
-.BR background ,
-.BR cursor ),
-and assorted appearance and behaviour values
-.RB ( borderpx ,
-.BR tabspaces ,
-.BR cursorshape ,
-and others). Unknown or malformed lines are reported on stderr with a line
-number and skipped. A missing file leaves the compiled-in defaults in place.
+on later lines. A missing file leaves the compiled-in defaults in place.
 Changing a setting takes effect on the next launch \(em no recompile.
+Unknown or malformed lines are reported on stderr with a line number and
+skipped.
+.PP
+Recognised directives:
+.TP
+.B font
+The Xft font specification (string, e.g. "Liberation Mono:pixelsize=12").
+.TP
+.B shell
+Path to the shell binary (string, default /bin/sh).
+.TP
+.B termname
+Value of the TERM environment variable (string, default "st-256color").
+.TP
+.B utmp
+Terminal record for utmp (string).
+.TP
+.B scroll
+Scrollback program (string, used by the scrollback patch).
+.TP
+.B stty_args
+stty(1) flags for serial mode (string).
+.TP
+.B vtiden
+Terminal identifier response (string).
+.TP
+.B borderpx
+Window border width in pixels (integer).
+.TP
+.B bellvolume
+Bell volume, -1 for silent (integer, default 0).
+.TP
+.B allowaltscreen
+Allow alternate screen switching (0 or 1).
+.TP
+.B allowwindowops
+Allow window escape sequences (0 or 1).
+.TP
+.B tabspaces
+Tab stop width in columns (unsigned integer, default 8).
+.TP
+.B blinktimeout
+Cursor blink interval in ms, 0 to disable (unsigned integer, default 800).
+.TP
+.B cursorthickness
+Thickness of bar/underline cursor in pixels (unsigned integer, default 2).
+.TP
+.B cursorshape
+Cursor shape (unsigned integer):
+2 = block, 4 = underline, 6 = bar, 7 = snowman.
+.TP
+.B cols
+Default number of columns (unsigned integer, default 80).
+.TP
+.B rows
+Default number of rows (unsigned integer, default 24).
+.TP
+.BI color0 " .. " color15
+The 16 ANSI terminal colours.
+Value may be an X colour name, a #rrggbb hex string, or a $variable.
+.TP
+.B foreground
+Default foreground colour (colorname index).
+.TP
+.B background
+Default background colour (colorname index).
+.TP
+.B cursor
+Cursor colour (colorname index).
+.TP
+.B reverse_cursor
+Reverse cursor colour (colorname index).
+.TP
+.BI set " $name value"
+Define a substitution variable.
+.B $name
+on any later line is replaced with
+.BR value .
+.TP
+.BI include " name-or-url"
+Patch directive used by
+.B \-\-rebuild
+only; ignored on a normal launch.
+See
+.B REBUILDING
+below.
 .PP
 A sample configuration listing every directive is installed as
 .IR config.sample .

@@ -128,39 +128,41 @@ setpaths(void)
 		snprintf(installpath, sizeof installpath, "%s/.local/bin/dst", home);
 }
 
-/* Base URL for dst-patches; used to resolve short include names. */
-#define PATCHES_BASE "https://raw.githubusercontent.com/kzopal/dst-patches/master"
+/* Patches repo for resolving short include names. */
+#define PATCHES_REPO "https://github.com/kzopal/dst-patches.git"
 
 /*
  * Return the INDEX‑derived full URL for a short include name, or NULL if the
- * name is unknown.  The INDEX is fetched (if not already cached) into
- * patchdir so it persists across rebuilds.
+ * name is unknown.  The patches repo is shallow‑cloned into patchdir/repo/ so
+ * INDEX reads and individual patch files bypass CDN caching entirely.
  */
 static const char *
 resolve_short_name(const char *shortname)
 {
 	static char url[2048];
-	char idxpath[2048], line[1024], name[256], file[256];
+	char idxpath[2048], line[1024], name[256], file[256], repodir[2048];
 	FILE *f;
 
 	if (!patchdir[0])
 		setpaths();
 
-	snprintf(idxpath, sizeof idxpath, "%s/INDEX", patchdir);
+	snprintf(repodir, sizeof repodir, "%s/repo", patchdir);
+	snprintf(idxpath, sizeof idxpath, "%s/INDEX", repodir);
 
-	/* always try a fresh fetch (CDN may be stale); fall back to cache */
-	{ char *a[] = { "curl", "-fsSL", "-o", idxpath, PATCHES_BASE "/INDEX", NULL };
-	  printf("dst: fetching patch index\n");
-	  { char *b[] = { "mkdir", "-p", patchdir, NULL }; run(b); }
-	  if (run(a)) {
-		unlink(idxpath);
-		if (access(idxpath, R_OK) != 0) {
-			fprintf(stderr, "dst: failed to fetch patch index from %s\n"
+		/* shallow clone if not present */
+	if (access(repodir, R_OK) != 0) {
+		{ char *a[] = { "mkdir", "-p", patchdir, NULL }; run(a); }
+		{ char *b[] = { "git", "clone", "--depth", "1",
+		                PATCHES_REPO, repodir, NULL };
+		  printf("dst: fetching patch index\n");
+		  if (run(b)) {
+			fprintf(stderr, "dst: failed to clone patch repo from %s\n"
 			    "     use a full URL to bypass short-name lookup\n",
-			    PATCHES_BASE "/INDEX");
+			    PATCHES_REPO);
 			return NULL;
 		}
-	} }
+		}
+	}
 
 	f = fopen(idxpath, "r");
 	if (!f)
@@ -175,7 +177,14 @@ resolve_short_name(const char *shortname)
 		if (sscanf(p, "%255s %255s", name, file) < 2)
 			continue;
 		if (strcmp(name, shortname) == 0) {
-			snprintf(url, sizeof url, "%s/%s", PATCHES_BASE, file);
+			/* symlink patch from repo clone into patchdir so the
+			 * apply logic finds it without hitting the CDN. */
+			char src[2048], dst[2048];
+			snprintf(src, sizeof src, "%s/%s", repodir, file);
+			snprintf(dst, sizeof dst, "%s/%s", patchdir, file);
+			unlink(dst);
+			symlink(src, dst);
+			snprintf(url, sizeof url, "%s/%s", patchdir, file);
 			fclose(f);
 			return url;
 		}
